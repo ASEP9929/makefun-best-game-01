@@ -54,7 +54,7 @@ function announce() {
 function startRun() {
   resetWorld(world);
   screen = SCREEN_PLAY;
-  world.banner = { text: 'LIGHT THE FIRST BEACON', sub: 'Collect embers, deliver them to the beacon', t: 2.4, max: 2.4 };
+  world.banner = { text: 'LIGHT THE FIRST BEACON', sub: 'Fill your hold — 5 embers — then deliver them to the beacon', t: 2.4, max: 2.4 };
   wardenWas = false;
   announce();
 }

@@ -41,6 +41,17 @@ function drawBackground(ctx, world) {
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
     ctx.fill();
   }
+  // Ember dust: warm motes drifting slowly, so the dark between the stars
+  // never reads as empty.
+  for (const m of world.motes) {
+    const mx = m.x + Math.sin(world.time * m.speed + m.phase) * 14;
+    const my = m.y + Math.cos(world.time * m.speed * 0.8 + m.phase) * 10;
+    const a = 0.18 + 0.22 * (0.5 + 0.5 * Math.sin(world.time * m.speed * 2 + m.phase));
+    ctx.fillStyle = m.warm ? `rgba(255, 179, 71, ${a})` : `rgba(140, 160, 220, ${a})`;
+    ctx.beginPath();
+    ctx.arc(mx, my, m.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawBeacon(ctx, world) {
@@ -104,10 +115,34 @@ function drawBeacon(ctx, world) {
   ctx.arc(b.x, b.y, BEACON.radius * pulse, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = COLORS.teal;
+  // Hold fill: the ring fills with ember as the hold fills, so the beacon
+  // itself shows how close it is to opening.
+  if (world.carried > 0) {
+    ctx.save();
+    ctx.strokeStyle = COLORS.ember;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, BEACON.radius * pulse + 6, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * world.carried) / BEACON.required);
+    ctx.stroke();
+    ctx.restore();
+  }
+  // While the Warden lives the beacon is shielded: a violet cage over the
+  // tower, so the block reads in the picture instead of feeling like a bug.
+  if (world.warden) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(201, 139, 255, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 6]);
+    ctx.lineDashOffset = b.pulse * 18;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, BEACON.radius * pulse + 14, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.fillStyle = world.warden ? COLORS.warden : COLORS.teal;
   ctx.font = '700 13px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('B E A C O N', b.x, b.y + BEACON.radius + 22);
+  ctx.fillText(world.warden ? 'B E A C O N  •  SHIELDED' : 'B E A C O N', b.x, b.y + BEACON.radius + 22);
 }
 
 function drawShard(ctx, s, time) {
@@ -386,6 +421,20 @@ function drawHUD(ctx, world) {
       ctx.fill();
     }
   }
+  // Hold pips: five ember diamonds under the beacons, filled as the hold
+  // fills, so the player always sees how far the next delivery is.
+  for (let i = 0; i < BEACON.required; i += 1) {
+    const x = FIELD.width / 2 - 28 + i * 14;
+    const y = 58;
+    ctx.fillStyle = i < world.carried ? COLORS.ember : 'rgba(255,255,255,0.16)';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 4);
+    ctx.lineTo(x + 4, y);
+    ctx.lineTo(x, y + 4);
+    ctx.lineTo(x - 4, y);
+    ctx.closePath();
+    ctx.fill();
+  }
   // Hearts + fuel, right. The FUEL label sits left of its bar, never on it.
   for (let i = 0; i < 3; i += 1) {
     drawHeart(ctx, FIELD.width - 30 - i * 30, 26, i < world.hearts, 26);
@@ -403,10 +452,10 @@ function drawHUD(ctx, world) {
   ctx.textAlign = 'center';
   ctx.font = '600 16px system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255, 243, 214, 0.75)';
-  let hint = 'Collect embers — fly through them';
-  if (world.carried > 0 && world.warden) hint = `Deliver ${world.carried} ember${world.carried > 1 ? 's' : ''} — or dash through the Warden`;
-  else if (world.carried > 0) hint = `Deliver ${world.carried} ember${world.carried > 1 ? 's' : ''} to the beacon  •  Space to dash`;
-  else if (world.warden) hint = 'The Warden guards the last beacon — dash through it to break its guard';
+  let hint = `Collect embers — fill your hold (${world.carried}/${BEACON.required})`;
+  if (world.warden) hint = 'The Warden shields the beacon — dash through it to break its guard';
+  else if (world.carried >= BEACON.required) hint = `Hold full — deliver ${world.carried} embers to the beacon  •  Space to dash`;
+  else if (world.carried > 0) hint = `Carrying ${world.carried}/${BEACON.required} embers — the beacon only opens for a full hold  •  Space to dash`;
   ctx.fillText(hint, FIELD.width / 2, FIELD.height - 16);
   ctx.restore();
 }
@@ -468,8 +517,8 @@ function drawTitle(ctx, world, best) {
   ctx.font = '500 17px system-ui, sans-serif';
   ctx.fillText('WASD / arrows — steer      SPACE / click — dash', FIELD.width / 2, 408);
   ctx.fillText('Dash through a wisp to dispel it — deliveries refill fuel', FIELD.width / 2, 434);
-  ctx.fillText('Collect ember shards, deliver them to the beacon, light all 5 to win.', FIELD.width / 2, 460);
-  ctx.fillText('3 hulls. Beware the Warden on wave 5.', FIELD.width / 2, 486);
+  ctx.fillText('Fill your hold — 5 embers — to open a beacon, light all 5 to win.', FIELD.width / 2, 460);
+  ctx.fillText('3 hulls. The Warden shields the last beacon — break its guard first.', FIELD.width / 2, 486);
   ctx.fillStyle = COLORS.dim;
   ctx.font = '600 16px system-ui, sans-serif';
   ctx.fillText(best > 0 ? `BEST SCORE  ${best.toLocaleString('en-US')}` : 'No voyages yet — light the first beacon', FIELD.width / 2, 514);

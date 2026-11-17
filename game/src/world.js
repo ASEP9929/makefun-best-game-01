@@ -2,6 +2,14 @@
 // The renderer only reads this state; the autopilot in shots.js only writes an
 // input. Nothing here touches the DOM, audio or canvas, so a scene can be
 // fast-forwarded deterministically for a screenshot.
+//
+// v2 rules (the loop, in one breath): fill your hold with 5 embers, then
+// deliver them to the beacon. A beacon only opens for a full hold, so the
+// 1-ember ferry that won v1 in ~13 seconds lights nothing. On wave 5 the
+// Warden shields the last beacon: break its 3-hit guard first, or no
+// delivery counts. Waking the Warden grants a second wind (+1 hull, full
+// fuel), so the final fight is a fair duel instead of a punishment for
+// engaging with it.
 import { BEACON, COLORS, FIELD, FUEL, PLAYER, SCORE, SHARD, STEP, WARDEN, WISP } from './config.js';
 import { angleTo, clamp, dist2, makeRng, range } from './random.js';
 
@@ -33,6 +41,7 @@ export function createWorld(seed) {
     shake: 0,
     hitStop: 0,
     banner: null,
+    beaconNagT: 0,
     warden: null,
     wardenSpawned: false,
     wardenT: 0,
@@ -56,8 +65,9 @@ export function createWorld(seed) {
     floaters: [],
     stars: [],
     nebulae: [],
+    motes: [],
   };
-  for (let i = 0; i < 150; i += 1) {
+  for (let i = 0; i < 240; i += 1) {
     world.stars.push({
       x: rng() * FIELD.width,
       y: rng() * FIELD.height,
@@ -67,13 +77,25 @@ export function createWorld(seed) {
       warm: rng() < 0.25,
     });
   }
-  for (let i = 0; i < 5; i += 1) {
+  for (let i = 0; i < 7; i += 1) {
     world.nebulae.push({
       x: rng() * FIELD.width,
       y: rng() * FIELD.height,
       r: 180 + rng() * 260,
       hue: rng() < 0.5 ? '122, 80, 200' : '30, 90, 160',
       alpha: 0.10 + rng() * 0.08,
+    });
+  }
+  // Slow ember dust: warm motes drifting through the dark so the field never
+  // reads as empty black between the stars.
+  for (let i = 0; i < 36; i += 1) {
+    world.motes.push({
+      x: rng() * FIELD.width,
+      y: rng() * FIELD.height,
+      r: 1 + rng() * 2.2,
+      phase: rng() * Math.PI * 2,
+      speed: 0.15 + rng() * 0.35,
+      warm: rng() < 0.7,
     });
   }
   return world;
@@ -180,7 +202,11 @@ export function spawnWarden(world) {
   };
   world.wardenSpawned = true;
   world.wardenT = 0;
-  showBanner(world, 'THE WARDEN WAKES', 'Dash through it to break its guard', 2.6);
+  // Second wind: the final fight starts fair. A courier that limped to wave
+  // 5 on one hull gets one back and a full tank, so the duel is winnable.
+  world.hearts = Math.min(3, world.hearts + 1);
+  world.fuel = FUEL.max;
+  showBanner(world, 'THE WARDEN WAKES', 'Second wind: +1 hull, fuel full — break its guard to unshield the beacon', 2.6);
 }
 
 function damagePlayer(world, fromX, fromY) {
@@ -221,6 +247,30 @@ function deliver(world) {
   showBanner(world, `BEACON LIT — ${world.beaconsLit} OF ${BEACON.total}`, `Wave ${world.wave}: the dark thickens`);
   if (world.wave === 5 && !world.wardenSpawned) spawnWarden(world);
   return EVENT_DELIVER;
+}
+
+// The player reached the beacon. A delivery only counts with a full hold,
+// and never while the Warden shields the beacon. Partial holds and shields
+// answer with one throttled floater instead of silence, so the rule reads
+// in play instead of feeling like a bug.
+function tryDeliver(world) {
+  const p = world.player;
+  if (world.carried <= 0) return 0;
+  if (world.carried < BEACON.required) {
+    if (world.beaconNagT <= 0) {
+      floater(world, world.beacon.x, world.beacon.y - 56, `NEED ${BEACON.required - world.carried} MORE EMBER${BEACON.required - world.carried > 1 ? 'S' : ''}`, COLORS.dim);
+      world.beaconNagT = 1.2;
+    }
+    return 0;
+  }
+  if (world.warden) {
+    if (world.beaconNagT <= 0) {
+      floater(world, world.beacon.x, world.beacon.y - 56, 'SHIELDED — BREAK THE WARDEN', COLORS.warden);
+      world.beaconNagT = 1.2;
+    }
+    return 0;
+  }
+  return deliver(world);
 }
 
 function updatePlayer(world, input, dt) {
@@ -359,6 +409,7 @@ export function stepWorld(world, input, dt) {
   world.time += dt;
   world.playTime += dt;
   world.beacon.pulse += dt;
+  world.beaconNagT = Math.max(0, world.beaconNagT - dt);
   if (world.banner) {
     world.banner.t -= dt;
     if (world.banner.t <= 0) world.banner = null;
@@ -405,9 +456,9 @@ export function stepWorld(world, input, dt) {
       }
     }
   }
-  // Beacon delivery.
+  // Beacon delivery: only a full hold counts, and never through the shield.
   if (world.carried > 0 && dist2(p.x, p.y, world.beacon.x, world.beacon.y) < BEACON.deliver * BEACON.deliver) {
-    events |= deliver(world);
+    events |= tryDeliver(world);
     if (world.phase === 'victory') return events;
   }
 
@@ -449,7 +500,7 @@ export function stepWorld(world, input, dt) {
           burst(world, warden.x, warden.y, COLORS.warden, 70, 420, 1.1);
           burst(world, warden.x, warden.y, COLORS.ember, 40, 300, 1);
           floater(world, warden.x, warden.y - 40, `+${SCORE.warden} WARDEN DOWN`, COLORS.warden);
-          showBanner(world, 'WARDEN DOWN', 'The dark thins — deliver the last embers');
+          showBanner(world, 'GUARD BROKEN', 'The beacon stands open — deliver your embers');
         } else {
           floater(world, warden.x, warden.y - 52, `GUARD ${warden.hp}/3`, COLORS.warden);
         }

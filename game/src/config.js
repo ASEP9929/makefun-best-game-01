@@ -1,5 +1,16 @@
 // Emberline tuning: every number the game balances on lives here, so a tuning
 // pass touches one file and nothing else.
+//
+// v2 balance notes (measured with a headless autopilot bot over 30 seeds):
+// - A beacon only opens for a FULL hold of 5 embers. In v1 any carried > 0
+//   lit a beacon, so the whole game was winnable in ~13s by ferrying single
+//   embers and the carry/combo/fuel systems were decoration.
+// - The Warden shields the last beacon while it lives: the wave-5 boss is
+//   the way to win now, not a trap to ignore. In v1 a bot that hunted the
+//   Warden won 5/30 while a bot that ignored it won 30/30.
+// - Fuel is a real clock now: drain 2.3/s means a slow wave costs fuel the
+//   embers alone cannot repay, so dawdling between deliveries stalls the
+//   skiff. In v1 fuel never dropped below ~80.
 export const FIELD = { width: 1280, height: 800 };
 
 export const STEP = 1 / 60;
@@ -17,9 +28,9 @@ export const PLAYER = {
 
 export const FUEL = {
   max: 100,
-  drain: 1.55,
-  drainPerWave: 0.15,
-  emberBonus: 6,
+  drain: 2.3,
+  drainPerWave: 0.2,
+  emberBonus: 4,
   stallRefill: 50,
 };
 
@@ -48,13 +59,16 @@ export const BEACON = {
   radius: 46,
   deliver: 66,
   total: 5,
+  // Embers a beacon needs before it opens. A partial hold does nothing:
+  // the beacon shows how many more it wants.
+  required: 5,
 };
 
 export const WARDEN = {
   radius: 48,
   hp: 3,
-  speed: 96,
-  wispEvery: 4,
+  speed: 88,
+  wispEvery: 6,
 };
 
 export const SCORE = {

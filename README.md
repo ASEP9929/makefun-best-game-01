@@ -14,11 +14,14 @@ apart or your fuel gutters out.
   breaks the Warden's guard)
 - **P / Esc** — pause, **M** — mute, **R** — restart after a win or a loss
 
-Rules in one breath: embers fly to you when you get close; carry up to 5 and
-deliver them to the beacon. Each delivery lights a beacon, refills your fuel
-and raises your combo multiplier. A hit costs a hull and resets the combo.
-Fuel drains the whole time — an empty tank stalls the skiff and costs a hull.
-On wave 5 the Warden wakes: three dashes through it bring it down.
+Rules in one breath: embers fly to you when you get close; fill your hold
+with 5 embers — only a full hold opens a beacon. Each delivery lights a
+beacon, refills your fuel and raises your combo multiplier. A hit costs a hull
+and resets the combo. Fuel drains the whole time — an empty tank stalls the
+skiff and costs a hull, and a slow wave costs more fuel than the embers repay.
+On wave 5 the Warden wakes and shields the last beacon: three dashes through
+it break its guard. Waking it grants a second wind (+1 hull, fuel full), so
+the final fight is a fair duel.
 
 ## Run it
 
@@ -44,7 +47,7 @@ with WebAudio.
 - `main.ts` — hands the game in: copies `game/` and `screenshots/` to `/output`
   and writes `dossier.json` with the vendored make.fun library
 - `screenshots/` — 4 real renders of the game's own code (title, play, Warden
-  fight, game over), each staged by `?shot=` through the live simulation
+  fight, victory), each staged by `?shot=` through the live simulation
 
 ## License
 
